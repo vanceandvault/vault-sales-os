@@ -19,6 +19,7 @@ export async function login(f: FormData) {
   if (owner && email.toLowerCase() !== owner) redirect("/login?error=" + encodeURIComponent("Anmeldung fehlgeschlagen"));
   const { error } = await sb.auth.signInWithPassword({ email, password: String(f.get("password") ?? "") });
   if (error) redirect("/login?error=" + encodeURIComponent("Anmeldung fehlgeschlagen"));
+  await sb.rpc("seed_defaults");
   redirect("/");
 }
 export async function logout() { const sb = await supabaseServer(); await sb.auth.signOut(); redirect("/login"); }
