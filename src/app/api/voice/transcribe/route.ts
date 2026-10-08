@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   out.set("response_format", "json"); out.set("temperature", "0");
   out.set("prompt", "Verkaufsnotiz auf Deutsch oder Schweizerdeutsch. Begriffe: VAULT STUDIO, Starter-Paket, Franken, Angebot, nachfassen, LinkedIn, GmbH, AG.");
   let r: Response;
-  try { r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", { method: "POST", headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` }, body: out, signal: AbortSignal.timeout(25_000) }); }
+  try { r = await fetch((process.env.GROQ_BASE_URL || "https://api.groq.com") + "/openai/v1/audio/transcriptions", { method: "POST", headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` }, body: out, signal: AbortSignal.timeout(25_000) }); }
   catch { return err("Netzwerkfehler bei der Spracherkennung. Bitte erneut versuchen.", 502, "stt_network"); }
   if (!r.ok) { console.error("STT", r.status); return err(r.status === 429 ? "Spracherkennung ausgelastet – bitte in einer Minute erneut." : "Transkription fehlgeschlagen.", 502, "stt_failed"); }
   const text = String(((await r.json()) as { text?: string }).text ?? "").trim();
