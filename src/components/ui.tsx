@@ -10,7 +10,7 @@ export const Stage = ({ s }: { s: string }) => <span className="chip text-white/
 export const Demo = () => <span className="chip border-dashed text-muted">Demo</span>;
 
 export function Stat({ value, label, accent }: { value: ReactNode; label: string; accent?: boolean }) {
-  return <div><div className={`text-2xl font-semibold tracking-tight md:text-3xl ${accent ? "text-accent" : ""}`}>{value}</div><div className="label mt-1">{label}</div></div>;
+  return <div><div className={`whitespace-nowrap text-xl font-semibold tracking-tight md:text-3xl ${accent ? "text-accent" : ""}`}>{value}</div><div className="label mt-1">{label}</div></div>;
 }
 export function PageHeader({ title, sub, back, right }: { title: string; sub?: string; back?: string; right?: ReactNode }) {
   return (
