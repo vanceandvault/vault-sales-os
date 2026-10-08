@@ -1,0 +1,34 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+@theme {
+  --color-bg: #070B12;
+  --color-card: #17213A;
+  --color-card2: #1d2a4a;
+  --color-blue: #517EB7;
+  --color-accent: #F3FF9A;
+  --color-line: rgb(255 255 255 / 0.09);
+  --color-muted: rgb(255 255 255 / 0.58);
+  --color-danger: #ff8a80;
+  --font-sans: "Neue Montreal", "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+html { background: var(--color-bg); color-scheme: dark; -webkit-text-size-adjust: 100%; }
+body { background: var(--color-bg); color: #fff; font-family: var(--font-sans); min-height: 100dvh; -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+@layer components {
+  .card { @apply rounded-2xl border border-line bg-card p-4; }
+  .label { @apply text-[11px] font-medium uppercase tracking-[0.14em] text-muted; }
+  .btn { @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-line px-4 text-sm font-semibold tracking-wide transition active:scale-[0.98] disabled:opacity-40; }
+  .btn-primary { @apply border-transparent bg-accent text-bg; }
+  .btn-blue { @apply border-transparent bg-blue text-white; }
+  .btn-ghost { @apply bg-white/5 text-white hover:bg-white/10; }
+  .btn-danger { @apply border-danger/40 text-danger; }
+  .input { @apply min-h-12 w-full rounded-xl border border-line bg-bg px-3 text-base text-white placeholder:text-white/30 focus:border-blue focus:outline-none; }
+  textarea.input { @apply min-h-24 py-3; }
+  .chip { @apply inline-flex items-center rounded-full border border-line px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider; }
+  .h-section { @apply mb-3 mt-8 text-xs font-semibold uppercase tracking-[0.18em] text-muted; }
+}
+.pb-safe { padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem); }
+.pt-safe { padding-top: env(safe-area-inset-top); }
