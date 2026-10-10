@@ -104,7 +104,8 @@ try {
     const mine = i % 2 === 1; const d = new Date(base + i * 3600_000).toISOString().replace("T", " ").slice(0, 19) + " UTC";
     return `${id},,${mine ? ME : other},${mine ? ME_URL : otherUrl},${mine ? other : ME},${mine ? otherUrl : ME_URL},${d},,"Nachricht ${i + 1} von ${other}, mit Komma",INBOX,\n`;
   }).join("");
-  const zip = (csv) => Buffer.from(zipSync({ "Basic_LinkedInDataExport_10-08-2026/messages.csv": strToU8(csv), "Basic_LinkedInDataExport_10-08-2026/Connections.csv": strToU8("First Name\nx") }));
+  const zipCache = new Map(); // zipSync stamps the current time → reuse bytes so 'the same file' really is identical
+  const zip = (csv) => { if (!zipCache.has(csv)) zipCache.set(csv, Buffer.from(zipSync({ "Basic_LinkedInDataExport_10-08-2026/messages.csv": strToU8(csv), "Basic_LinkedInDataExport_10-08-2026/Connections.csv": strToU8("First Name\nx") }))); return zipCache.get(csv); };
   const upload = async (buf, name = "Basic_LinkedInDataExport_10-08-2026.zip") => {
     await page.goto("/linkedin"); await page.setInputFiles("#li-file", { name, mimeType: "application/zip", buffer: buf });
     await page.waitForSelector("text=Synchronisieren", { timeout: 15000 });
