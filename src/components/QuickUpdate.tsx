@@ -26,13 +26,14 @@ export function QuickUpdate() {
   const [vuId, setVuId] = useState<string | null>(null); const [leads, setLeads] = useState<LeadRef[]>([]); const [offerId, setOfferId] = useState<string | null>(null);
   const [p, setP] = useState<Proposal | null>(null); const [target, setTarget] = useState<string>("new");
   const [form, setForm] = useState({ company: "", contact: "", type: "note", outcome: "", summary: "", stage: "", temp: "", value: "", title: "", due: "", pains: "", objs: "", signals: "" });
+  const [caps, setCaps] = useState<{ stt: boolean; ai: boolean } | null>(null);
   const [wonOk, setWonOk] = useState(false); const [drafts, setDrafts] = useState<Draft[]>([]); const [result, setResult] = useState<{ lead_id: string } | null>(null);
   const rec = useRef<MediaRecorder | null>(null); const chunks = useRef<Blob[]>([]); const timer = useRef<ReturnType<typeof setInterval> | null>(null); const stream = useRef<MediaStream | null>(null);
 
   const reset = useCallback(() => { setStep("idle"); setError(null); setTranscript(""); setP(null); setVuId(null); setWonOk(false); setResult(null); setSecs(0); }, []);
   const refreshDrafts = useCallback(() => { listDrafts().then(setDrafts); }, []);
   useEffect(() => {
-    const h = (e: Event) => { reset(); setLeadId((e as CustomEvent).detail?.leadId); setOpen(true); refreshDrafts(); };
+    const h = (e: Event) => { reset(); setLeadId((e as CustomEvent).detail?.leadId); setOpen(true); refreshDrafts(); fetch("/api/status").then((r) => r.json()).then(setCaps).catch(() => {}); };
     window.addEventListener("vault:quick-update", h); return () => window.removeEventListener("vault:quick-update", h);
   }, [reset, refreshDrafts]);
   useEffect(() => { document.body.style.overflow = open ? "hidden" : ""; }, [open]);
@@ -50,7 +51,7 @@ export function QuickUpdate() {
     r.ondataavailable = (e) => e.data.size && chunks.current.push(e.data);
     r.onerror = () => { stopTracks(); setStep("idle"); setError("Aufnahme unterbrochen. Bitte erneut starten."); };
     r.onstop = () => { stopTracks(); void send(new Blob(chunks.current, { type: r.mimeType || "audio/mp4" })); };
-    r.start(1000); setStep("recording"); setSecs(0);
+    r.start(); setStep("recording"); setSecs(0);
     timer.current = setInterval(() => setSecs((s) => { if (s + 1 >= MAX_SECONDS) r.state === "recording" && r.stop(); return s + 1; }), 1000);
   }
   const stop = () => { if (rec.current?.state === "recording") rec.current.stop(); };
@@ -63,7 +64,7 @@ export function QuickUpdate() {
       const r = await fetch("/api/voice/transcribe", { method: "POST", body: fd }); const j = await r.json().catch(() => ({}));
       if (!r.ok) {
         if (j.code === "stt_network" || r.status >= 500) await saveDraft({ id: draftId, audio: blob, mime: blob.type, leadId, error: j.error });
-        setStep("idle"); refreshDrafts(); setError(`${j.error ?? "Transkription fehlgeschlagen."} ${r.status >= 500 ? "Die Aufnahme wurde als Entwurf gespeichert." : ""}`); return;
+        setStep("idle"); refreshDrafts(); setError(`${j.error ?? "Transkription fehlgeschlagen."} (${j.code ?? r.status}) ${r.status >= 500 ? "Die Aufnahme wurde als Entwurf gespeichert." : ""}`); return;
       }
       if (draftId) await deleteDraft(draftId);
       setTranscript(j.transcript); setStep("transcript");
@@ -119,7 +120,7 @@ export function QuickUpdate() {
 
   return (
     <>
-      <button onClick={() => { reset(); setLeadId(undefined); setOpen(true); refreshDrafts(); }} aria-label="Quick Update per Sprache"
+      <button onClick={() => { reset(); setLeadId(undefined); setOpen(true); refreshDrafts(); fetch("/api/status").then((r) => r.json()).then(setCaps).catch(() => {}); }} aria-label="Quick Update per Sprache"
         className="fixed bottom-24 left-1/2 z-40 flex h-16 w-16 -translate-x-1/2 items-center justify-center rounded-full bg-accent text-bg shadow-[0_8px_30px_rgba(243,255,154,0.25)] active:scale-95 md:bottom-8 md:left-auto md:right-8 md:translate-x-0">
         {Icon.mic}
       </button>
@@ -127,6 +128,8 @@ export function QuickUpdate() {
         <div role="dialog" aria-modal="true" aria-label="Quick Update" className="fixed inset-0 z-50 flex items-end bg-black/70 md:items-center md:justify-center">
           <div className="pb-safe max-h-[94dvh] w-full overflow-y-auto rounded-t-3xl border border-line bg-bg p-5 md:max-w-xl md:rounded-3xl">
             <div className="mb-4 flex items-center justify-between"><div className="label">Quick Update{leadId ? " · für diesen Lead" : ""}</div><button onClick={close} className="btn btn-ghost min-h-10 px-3">Schliessen</button></div>
+            {caps && !caps.stt && <div className="mb-4 rounded-xl border border-accent/30 bg-accent/5 p-3 text-sm text-accent">Spracherkennung ist nicht eingerichtet (GROQ_API_KEY fehlt in Netlify). Du kannst unten Text eingeben.</div>}
+            {caps && !caps.ai && <div className="mb-4 rounded-xl border border-accent/30 bg-accent/5 p-3 text-sm text-accent">KI-Auswertung ist nicht eingerichtet (ANTHROPIC_API_KEY fehlt in Netlify).</div>}
             {error && <div role="alert" className="mb-4 rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm text-danger">{error}</div>}
 
             {(step === "idle" || step === "recording") && (

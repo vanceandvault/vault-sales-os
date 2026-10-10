@@ -9,6 +9,10 @@ import { startStack, ANON_KEY, OWNER } from "./stack.mjs";
 const ROOT = path.resolve(import.meta.dirname, "..");
 const { chromium, devices } = await import((process.env.PLAYWRIGHT_DIR || "/opt/node-tools/node_modules/playwright") + "/index.mjs");
 const SHOTS = process.env.SHOTS || path.join(ROOT, "e2e/screenshots"); fs.mkdirSync(SHOTS, { recursive: true });
+const zToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Zurich" }).format(new Date());
+const plus = (d, n) => { const x = new Date(d + "T00:00:00Z"); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+const nextFriday = (() => { const wd = new Date(zToday + "T00:00:00Z").getUTCDay(); let d = (5 - wd + 7) % 7; if (d === 0) d = 7; return plus(zToday, d); })();
+const TOMORROW = plus(zToday, 1);
 const failures = []; let passed = 0;
 const ok = (cond, msg) => { if (cond) { passed++; console.log("  ✓", msg); } else { failures.push(msg); console.log("  ✗ FAIL:", msg); } };
 const section = (s) => console.log("\n" + s);
@@ -61,12 +65,12 @@ try {
     if (shot) await page.screenshot({ path: `${SHOTS}/${shot}` });
   };
   await quick("Ich habe Milos geschrieben. Noch keine Antwort. Freitag nachfassen.", "03-voice-preview.png");
-  const friday = await page.inputValue("[role=dialog] input[type=date]"); ok(friday === "2026-10-09", `preview shows Friday as due date (${friday})`);
+  const friday = await page.inputValue("[role=dialog] input[type=date]"); ok(friday === nextFriday, `preview shows Friday as due date (${friday})`);
   const sel = await page.$eval("[role=dialog] select", (s) => s.selectedOptions[0].textContent); ok(/HM Renovation/.test(sel) && /Milos/.test(sel), "contact matched to HM Renovation / Milos");
   ok(sql("select count(*) from activities where source='voice'") === "0", "nothing saved before confirmation");
   await page.click("text=Bestätigen & speichern"); await page.waitForSelector("text=Gespeichert");
   ok(sql("select count(*) from activities where source='voice' and type='linkedin_message'") === "1", "activity created");
-  ok(sql("select title||'|'||due_date from tasks where status='open'") === "Milos nachfassen|2026-10-09", "next action created, due Friday 2026-10-09");
+  ok(sql("select title||'|'||due_date from tasks where status='open'") === `Milos nachfassen|${nextFriday}`, "next action created, due Friday 2026-10-09");
   ok(sql("select count(*) from tasks where status='open'") === "1" && sql("select count(*) from leads") === "1", "no duplicate task / no duplicate lead");
   ok(sql("select status from voice_updates") === "applied" && sql("select count(*) from audit_logs where action='voice.apply'") === "1", "transcript stored + audit log written");
   await page.click("text=Schliessen");
@@ -75,7 +79,7 @@ try {
   await quick("Neue Firma Müller Elektro AG. Geschäftsführer Thomas Müller. Heute angerufen, nicht erreicht. Morgen nochmals.");
   ok((await page.$eval("[role=dialog] select", (s) => s.value)) === "new", "unknown company → proposes NEW lead");
   await page.click("text=Bestätigen & speichern"); await page.waitForSelector("text=Gespeichert"); await page.click("text=Schliessen");
-  ok(sql("select count(*) from companies where name='Müller Elektro AG'") === "1" && sql("select due_date from tasks t join leads l on l.id=t.lead_id join companies c on c.id=l.company_id where c.name='Müller Elektro AG' and t.status='open'") === "2026-10-09", "new lead + tomorrow's follow-up created");
+  ok(sql("select count(*) from companies where name='Müller Elektro AG'") === "1" && sql("select due_date from tasks t join leads l on l.id=t.lead_id join companies c on c.id=l.company_id where c.name='Müller Elektro AG' and t.status='open'") === TOMORROW, "new lead + tomorrow's follow-up created");
 
   // ───────── TEST B ─────────
   section("TEST B – deal won needs approval");
