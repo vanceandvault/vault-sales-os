@@ -6,7 +6,7 @@ import { ErrorNote, PageHeader, Temp, Stage, Demo } from "@/components/ui";
 import { DoneSheet } from "@/components/DoneSheet";
 import { AskVault } from "@/components/AskVault";
 import { VoiceButton } from "@/components/VoiceButton";
-import { addNote, clearReview, markLost, markWon, setNextAction, updateLead } from "@/app/actions";
+import { addNote, clearReview, deleteLead, markLost, markWon, setNextAction, updateLead } from "@/app/actions";
 import { diffDays, formatCH, formatCHDateTime, formatCHF, weekdayName, zurichToday } from "@/lib/dates";
 import { STAGES, STAGE_LABEL } from "@/lib/voice";
 
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 const Row = ({ k, v }: { k: string; v?: string | null }) => <div className="flex justify-between gap-4 border-b border-line py-2 text-sm last:border-0"><span className="text-muted">{k}</span><span className="text-right">{v || "–"}</span></div>;
 const List = ({ k, v }: { k: string; v: string[] }) => <div className="py-2"><div className="label mb-1">{k}</div>{v.length ? <ul className="list-disc pl-5 text-sm">{v.map((x) => <li key={x}>{x}</li>)}</ul> : <div className="text-sm text-muted">Nichts erfasst</div>}</div>;
 
-export default async function LeadDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ win?: string; lose?: string; error?: string }> }) {
+export default async function LeadDetail({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ win?: string; lose?: string; error?: string; edit?: string }> }) {
   const { id } = await params; const sp = await searchParams; if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const sb = await supabaseServer(); const today = zurichToday(); const settings = await loadSettings();
   const { data: l } = await sb.from("leads").select("*, companies(*), contacts!leads_contact_id_fkey(*)").eq("id", id).maybeSingle(); if (!l) notFound();
@@ -33,7 +33,7 @@ export default async function LeadDetail({ params, searchParams }: { params: Pro
 
   return (
     <div>
-      <PageHeader title={name} back="/leads" sub={k?.name ? `${k.name}${k.position ? " · " + k.position : ""}` : "Lead"} right={<div className="flex flex-col items-end gap-2"><Temp t={l.temperature} />{l.is_demo && <Demo />}</div>} />
+      <PageHeader title={name} back="/leads" sub={k?.name ? `${k.name}${k.position ? " · " + k.position : ""}` : "Lead"} right={<div className="flex flex-col items-end gap-2"><Temp t={l.temperature} />{l.is_demo && <Demo />}<Link href={`/leads/${id}?edit=1#edit`} className="btn btn-ghost min-h-10 px-4 text-xs">✎ Bearbeiten</Link></div>} />
       <ErrorNote message={sp.error} />
       <div className="mb-4 flex flex-wrap items-center gap-2"><Stage s={l.stage} />{l.deal_value != null && <span className="chip border-accent/30 text-accent">Potenzial {formatCHF(l.deal_value)}</span>}{l.expected_mrr && <span className="chip">MRR {formatCHF(l.expected_mrr)}</span>}</div>
 
@@ -94,7 +94,7 @@ export default async function LeadDetail({ params, searchParams }: { params: Pro
             <p className="mt-1 whitespace-pre-wrap text-sm">{t.m.content}</p></li>))}
       </ol>
 
-      <details className="mt-8"><summary className="btn btn-ghost w-full cursor-pointer">Lead bearbeiten</summary>
+      <details id="edit" open={!!sp.edit} className="mt-8"><summary className="btn btn-ghost w-full cursor-pointer">Lead bearbeiten</summary>
         <form action={updateLead.bind(null, id)} className="mt-3 grid gap-3">
           <div className="card grid gap-3"><div className="label">Firma</div><input className="input" name="company" defaultValue={c?.name ?? ""} placeholder="Firma" /><div className="grid grid-cols-2 gap-3"><input className="input" name="industry" defaultValue={c?.industry ?? ""} placeholder="Branche" /><input className="input" name="location" defaultValue={c?.location ?? ""} placeholder="Ort" /></div>
             <input className="input" name="website" defaultValue={c?.website ?? ""} placeholder="Website" /><input className="input" name="company_linkedin" defaultValue={c?.linkedin_url ?? ""} placeholder="Firmen-LinkedIn" /><input className="input" name="company_instagram" defaultValue={c?.instagram ?? ""} placeholder="Instagram" /></div>
@@ -111,7 +111,12 @@ export default async function LeadDetail({ params, searchParams }: { params: Pro
             <input className="input" name="decision_makers" defaultValue={l.decision_makers ?? ""} placeholder="Entscheider" /><input className="input" name="timing" defaultValue={l.timing ?? ""} placeholder="Timing" /><textarea className="input" name="notes" defaultValue={l.notes ?? ""} placeholder="Notizen" />
             <input className="input" name="priority_override" inputMode="numeric" defaultValue={l.priority_override ?? ""} placeholder="Manuelle Priorität (Score überschreiben)" />
             <label className="flex items-center gap-3 text-sm"><input type="checkbox" name="not_interested" defaultChecked={l.not_interested} className="h-5 w-5 accent-[#F3FF9A]" />Ausdrücklich kein Interesse</label></div>
-          <button className="btn btn-primary">Speichern</button></form></details>
+          <button className="btn btn-primary">Speichern</button></form>
+        <form action={deleteLead.bind(null, id)} className="card mt-4 grid gap-3 border-danger/40">
+          <div className="label text-danger">Lead löschen</div>
+          <p className="text-sm text-muted">Löscht diesen Lead mit allen Aktionen, Aktivitäten{deal ? <>, <b className="text-danger">dem gewonnenen Deal und allen Zahlungen (Umsatz sinkt!)</b></> : ""} unwiderruflich. Importierte LinkedIn-Nachrichten bleiben erhalten und erscheinen wieder in der Prüf-Liste. Firma/Kontakt werden nur entfernt, wenn sie sonst nirgends verwendet werden.</p>
+          <label className="flex items-start gap-3 text-sm"><input type="checkbox" name="confirm" className="mt-1 h-5 w-5 accent-[#ff8a80]" />Ja, <b>{name}</b> endgültig löschen.</label>
+          <button className="btn btn-danger">Lead löschen</button></form></details>
     </div>
   );
 }

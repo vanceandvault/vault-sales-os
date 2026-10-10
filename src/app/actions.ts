@@ -54,6 +54,22 @@ export async function updateLead(id: string, f: FormData) {
   done("/", "/leads", "/pipeline"); redirect(`/leads/${id}`);
 }
 
+export async function deleteLead(id: string, f: FormData) {
+  const { sb } = await db(); uuid(id);
+  if (f.get("confirm") !== "on") redirect(`/leads/${id}?edit=1&error=` + encodeURIComponent("Bitte das Löschen bestätigen"));
+  const { data: l } = await sb.from("leads").select("company_id, contact_id, companies(name)").eq("id", id).maybeSingle();
+  if (!l) redirect("/leads");
+  check((await sb.from("leads").delete().eq("id", id)).error);   // tasks, activities, deals, payments cascade; LinkedIn conversations are kept (unlinked)
+  // remove the company/contact only if nothing else uses them
+  if (l.contact_id) { const { count } = await sb.from("leads").select("id", { count: "exact", head: true }).eq("contact_id", l.contact_id); if (!count) await sb.from("contacts").delete().eq("id", l.contact_id); }
+  if (l.company_id) {
+    const [{ count: ls }, { count: cs }] = await Promise.all([sb.from("leads").select("id", { count: "exact", head: true }).eq("company_id", l.company_id), sb.from("contacts").select("id", { count: "exact", head: true }).eq("company_id", l.company_id)]);
+    if (!ls && !cs) await sb.from("companies").delete().eq("id", l.company_id);
+  }
+  await sb.from("audit_logs").insert({ action: "lead.delete", entity: "lead", entity_id: id, detail: { company: (l.companies as { name?: string } | null)?.name ?? null } });
+  done("/", "/leads", "/pipeline", "/revenue", "/linkedin"); redirect("/leads");
+}
+
 export async function moveStage(id: string, stage: string) {
   const { sb } = await db(); uuid(id);
   if (!STAGES.includes(stage as never) || stage === "won" || stage === "lost") return { error: "Gewonnen/Verloren erfordert Bestätigung" };

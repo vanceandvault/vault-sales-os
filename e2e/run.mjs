@@ -187,18 +187,31 @@ try {
   ok(sql("select kind||amount from payments") === "received1490.00", "payment recorded only on manual confirmation");
   await page.screenshot({ path: `${SHOTS}/09-revenue.png`, fullPage: true });
 
+  // ───────── edit & delete ─────────
+  section("EDIT · DELETE");
+  await page.goto(ritaUrl + "?edit=1"); ok(await page.isVisible("input[name=company]"), "edit form opens via 'Bearbeiten'");
+  await page.fill("input[name=company]", "Reply Test GmbH"); await page.fill("input[name=phone]", "+41 79 000 00 00"); await page.click("button:text-is('Speichern')"); await page.waitForURL(ritaUrl);
+  ok(sql("select count(*) from companies where name='Reply Test GmbH'") === "1" && sql("select count(*) from contacts where phone='+41 79 000 00 00'") === "1", "lead edit persisted");
+  await page.goto(ritaUrl + "?edit=1"); await page.click("button:text-is('Lead löschen')"); await page.waitForSelector("[role=alert]");
+  ok(sql("select count(*) from leads") === "3", "delete blocked without confirmation");
+  await page.waitForLoadState("networkidle"); await page.waitForTimeout(800); await page.locator("input[name=confirm]").last().check(); await page.click("button:text-is('Lead löschen')"); await page.waitForURL(/\/leads$/);
+  ok(sql("select count(*) from leads") === "2" && sql("select count(*) from companies where name='Reply Test GmbH'") === "0" && sql("select count(*) from contacts where name='Rita'") === "0", "lead + orphaned company/contact deleted");
+  ok(sql("select count(*) from tasks where title like 'Prüfen ob Rita%'") === "0", "its tasks deleted");
+  ok(sql("select count(*) from linkedin_messages") === "20" && sql("select count(*) from linkedin_conversations where conversation_key='conv-rita' and lead_id is null") === "1", "LinkedIn messages kept, conversation unlinked");
+  ok(sql("select count(*) from audit_logs where action='lead.delete'") === "1", "deletion audit-logged");
+
   // ───────── TEST H ─────────
   section("TEST H – persistence");
   await ctx.close(); const ctx2 = await newCtx(); const p2 = await ctx2.newPage(); await login(p2);
   await p2.goto("/leads?f=done"); ok((await p2.textContent("main")).includes("HM Renovation"), "won lead still present after reopening");
-  await p2.goto("/leads"); const t2 = await p2.textContent("main"); ok(t2.includes("Reply Test AG") && t2.includes("Müller Elektro AG"), "all other leads present");
+  await p2.goto("/leads"); const t2 = await p2.textContent("main"); ok(t2.includes("Müller Elektro AG"), "all other leads present");
   await p2.goto(hmUrl); const t3 = await p2.textContent("main"); ok(/Nachricht 18 von Milos|Nachricht 17/.test(t3) || /LinkedIn · /.test(t3), "LinkedIn history + notes present");
   ok(/Milos hat das Starter-Paket/.test(t3) || /bestätigt/.test(t3), "voice activity present in timeline");
-  const exp = await (await ctx2.request.get("/api/export")).json(); ok(exp.linkedin_messages.length === 20 && exp.leads.length === 3, "data export contains everything");
+  const exp = await (await ctx2.request.get("/api/export")).json(); ok(exp.linkedin_messages.length === 20 && exp.leads.length === 2, "data export contains everything");
   await p2.goto("/more"); await p2.click("button:has-text('Demo-Daten laden')"); await p2.waitForSelector("button:has-text('Demo-Firmen löschen')");
   ok(sql("select count(*) from companies where is_demo") === "6" && sql("select count(*) from leads where is_demo and stage='won'") === "0", "demo data loads, marked, none Won");
   await p2.click("button:has-text('Demo-Firmen löschen')"); await p2.waitForSelector("button:has-text('Demo-Daten laden')");
-  ok(sql("select count(*) from companies where is_demo") === "0" && sql("select count(*) from leads") === "3", "demo data deletes cleanly, real data untouched");
+  ok(sql("select count(*) from companies where is_demo") === "0" && sql("select count(*) from leads") === "2", "demo data deletes cleanly, real data untouched");
   await ctx2.close(); await browser.close();
 } catch (e) { console.log("E2E CRASH", e); failures.push("crash: " + (e?.message ?? e)); }
 finally { try { process.kill(-next.pid); } catch {} next?.kill(); await stack.stop(); }
