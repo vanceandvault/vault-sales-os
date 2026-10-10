@@ -16,6 +16,11 @@ export async function guard(bucket: string, max = 40) {
 
 export function aiError(e: unknown) {
   if (e instanceof AiUnavailable) return err(e.message, 503, "ai_unavailable");
-  console.error("AI error", e instanceof Error ? e.message : e);
-  return err("KI-Anfrage fehlgeschlagen. Bitte erneut versuchen.", 502, "ai_failed");
+  const msg = e instanceof Error ? e.message : String(e);
+  console.error("AI error", msg);
+  // owner-only app: show the provider's reason (status + message, never keys) so setup problems are diagnosable
+  const status = (e as { status?: number })?.status;
+  const hint = status === 401 ? "API-Key ungültig" : status === 404 ? "Modell nicht gefunden – ANTHROPIC_MODEL prüfen" : status === 429 ? "Limit/Guthaben erreicht" : status === 400 && /credit/i.test(msg) ? "Guthaben leer" : "";
+  const detail = [status, hint, msg.replace(/sk-[A-Za-z0-9_-]+/g, "***").slice(0, 160)].filter(Boolean).join(" · ");
+  return err(`KI-Anfrage fehlgeschlagen (${detail}).`, 502, "ai_failed");
 }

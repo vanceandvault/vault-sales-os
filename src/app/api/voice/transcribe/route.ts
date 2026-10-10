@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   if (!/^(audio|video)\//.test(file.type)) return err("Ungültiges Audioformat.", 415);
 
   const out = new FormData();
-  out.set("file", file, file.name || "voice.m4a"); out.set("model", "whisper-large-v3-turbo"); out.set("language", "de");
+  out.set("file", file, file.name || "voice.m4a"); out.set("model", process.env.GROQ_STT_MODEL || "whisper-large-v3"); out.set("language", "de"); // forced: otherwise short/dialect audio is often mis-detected as another language
   out.set("response_format", "json"); out.set("temperature", "0");
   out.set("prompt", "Verkaufsnotiz auf Deutsch oder Schweizerdeutsch. Begriffe: VAULT STUDIO, Starter-Paket, Franken, Angebot, nachfassen, LinkedIn, GmbH, AG.");
   let r: Response;

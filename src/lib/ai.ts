@@ -19,7 +19,7 @@ Erfinde keine Fakten. Wenn etwas nicht belegt ist, gib null zurück bzw. sage es
 export const structuredLlm: Llm = async ({ system, user, schema, name, description }) => {
   const res = await client().messages.create({
     model: model(), max_tokens: 1500, system, messages: [{ role: "user", content: user }],
-    tools: [{ name, description, input_schema: z.toJSONSchema(schema) as Anthropic.Tool.InputSchema }],
+    tools: [{ name, description, input_schema: (({ $schema, ...rest }) => rest)(z.toJSONSchema(schema) as Record<string, unknown>) as Anthropic.Tool.InputSchema }],
     tool_choice: { type: "tool", name },
   });
   const block = res.content.find((b) => b.type === "tool_use");
