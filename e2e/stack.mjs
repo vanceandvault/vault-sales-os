@@ -56,6 +56,7 @@ export async function startStack({ root, pgPort = 54998, gwPort = 54321, pgrstPo
     if (url.pathname === "/openai/v1/audio/transcriptions") { await readBody(req); return send(res, 200, { text: mock.transcript }); }
     if (url.pathname === "/v1/messages") {
       const body = JSON.parse((await readBody(req)).toString()); const user = body.messages[0].content; mock.aiCalls.push(body.tools?.[0]?.name ?? "text");
+      if (body.tool_choice && body.tool_choice.type !== "auto") return send(res, 400, { type: "error", error: { type: "invalid_request_error", message: `tool_choice: type \"${body.tool_choice.type}\" is not supported for this model.` } });
       const tool = body.tools?.[0]?.name; const t = (/<untrusted>\n([\s\S]*?)\n<\/untrusted>/.exec(user) ?? [])[1] ?? "";
       const base = { company_name: null, contact_name: null, activity_type: "note", outcome: null, summary: t.slice(0, 200), suggested_stage: null, suggested_temperature: null, deal_value: null, expected_mrr: null, offer_name: null,
         pain_points: [], objections: [], buying_signals: [], decision_makers: null, timing: null, next_action_title: null, next_action_due_phrase: null, next_action_due_iso: null, won_claimed: false, lost_claimed: false, not_interested: false, confidence: 0.9, clarification_required: null };

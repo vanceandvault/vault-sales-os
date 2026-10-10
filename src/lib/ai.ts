@@ -17,14 +17,18 @@ Erfinde keine Fakten. Wenn etwas nicht belegt ist, gib null zurück bzw. sage es
 
 /** Structured output via forced tool call. The result is validated by the caller with zod before anything is used. */
 export const structuredLlm: Llm = async ({ system, user, schema, name, description }) => {
+  // tool_choice "tool"/"any" is rejected by some models → use "auto", instruct the call, and fall back to JSON in text
   const res = await client().messages.create({
-    model: model(), max_tokens: 1500, system, messages: [{ role: "user", content: user }],
+    model: model(), max_tokens: 1500, system: `${system}\nAntworte ausschliesslich, indem du das Tool "${name}" aufrufst.`, messages: [{ role: "user", content: user }],
     tools: [{ name, description, input_schema: (({ $schema, ...rest }) => rest)(z.toJSONSchema(schema) as Record<string, unknown>) as Anthropic.Tool.InputSchema }],
-    tool_choice: { type: "tool", name },
+    tool_choice: { type: "auto" },
   });
   const block = res.content.find((b) => b.type === "tool_use");
-  if (!block || block.type !== "tool_use") throw new Error("KI lieferte keine strukturierte Antwort");
-  return block.input;
+  if (block && block.type === "tool_use") return block.input;
+  const text = res.content.map((b) => (b.type === "text" ? b.text : "")).join("");
+  const json = /\{[\s\S]*\}/.exec(text)?.[0];
+  if (json) { try { return JSON.parse(json); } catch { /* fall through */ } }
+  throw new Error("KI lieferte keine strukturierte Antwort");
 };
 
 export const textLlm: TextLlm = async ({ system, user, maxTokens = 1200 }) => {

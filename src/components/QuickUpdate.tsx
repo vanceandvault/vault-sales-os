@@ -50,14 +50,15 @@ export function QuickUpdate() {
     const r = new MediaRecorder(stream.current, mime ? { mimeType: mime } : undefined); chunks.current = []; rec.current = r;
     r.ondataavailable = (e) => e.data.size && chunks.current.push(e.data);
     r.onerror = () => { stopTracks(); setStep("idle"); setError("Aufnahme unterbrochen. Bitte erneut starten."); };
-    r.onstop = () => { stopTracks(); void send(new Blob(chunks.current, { type: r.mimeType || "audio/mp4" })); };
+    // Safari can deliver the last chunk slightly AFTER 'stop' → wait briefly before assembling the recording
+    r.onstop = () => { stopTracks(); setStep("transcribing"); setTimeout(() => void send(new Blob(chunks.current, { type: r.mimeType || "audio/mp4" })), 500); };
     r.start(); setStep("recording"); setSecs(0);
     timer.current = setInterval(() => setSecs((s) => { if (s + 1 >= MAX_SECONDS) r.state === "recording" && r.stop(); return s + 1; }), 1000);
   }
-  const stop = () => { if (rec.current?.state === "recording") rec.current.stop(); };
+  const stop = () => { const r = rec.current; if (r?.state === "recording") { try { r.requestData(); } catch { /* not supported */ } r.stop(); } };
 
   async function send(blob: Blob, draftId?: string) {
-    if (blob.size < 1500) { setStep("idle"); setError("Keine Sprache erkannt – die Aufnahme war zu kurz."); return; }
+    if (blob.size < 1500) { setStep("idle"); setError(`Aufnahme leer oder zu kurz (${blob.size} Bytes, ${blob.type || "unbekannter Typ"}). Bitte erneut aufnehmen oder Text eingeben.`); return; }
     setStep("transcribing"); setError(null);
     const fd = new FormData(); fd.set("audio", new File([blob], `voice.${blob.type.includes("mp4") ? "m4a" : "webm"}`, { type: blob.type }));
     try {
